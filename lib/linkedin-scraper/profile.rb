@@ -7,7 +7,7 @@ module Linkedin
 
     ATTRIBUTES = %w(name first_name last_name title location country industry summary picture linkedin_url education groups websites languages skills certifications organizations past_companies current_companies recommended_visitors)
 
-    attr_reader :page, :linkedin_url
+    attr_reader :page, :linkedin_url, :agent
 
     def self.get_profile(url)
       Linkedin::Profile.new(url)
@@ -15,7 +15,20 @@ module Linkedin
       puts e
     end
 
-    def initialize(url)
+    def initialize
+    end
+
+    def login(u,p)
+      home = http_client.get("http://linkedin.com")
+      sign_in_form = home.forms.select{|form| form.name == "login"}[0]
+      login = sign_in_form.fields.select{|f| f.name == "session_key"}[0]
+      password = sign_in_form.fields.select{|f| f.name == "session_password"}[0]
+      login.value = u
+      password.value = p
+      sign_in_form.submit
+    end
+
+    def go(url)
       @linkedin_url = url
       @page         = http_client.get(url)
     end
@@ -125,7 +138,7 @@ module Linkedin
 
 
     def recommended_visitors
-      @recommended_visitors ||= @page.search('.browsemap/.content/ul/li').map do |visitor|
+      @recommended_visitors ||= @page.search('.insights-browse-map/ul/li').map do |visitor|
         v = {}
         v[:link]    = visitor.at('a')['href']
         v[:name]    = visitor.at('strong/a').text
@@ -188,10 +201,13 @@ module Linkedin
     end
 
     def http_client
-      Mechanize.new do |agent|
-        agent.user_agent_alias = USER_AGENTS.sample
-        agent.max_history = 0
+      if @agent.nil?
+        @agent = Mechanize.new do |agent|
+          agent.user_agent_alias = USER_AGENTS.sample
+          agent.max_history = 0
+        end
       end
+      @agent
     end
 
     def get_linkedin_company_url(link)
